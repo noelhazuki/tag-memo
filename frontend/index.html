@@ -145,7 +145,10 @@
       <span class="field-label">リンク（任意）</span>
       <input type="url" id="linkInput" placeholder="https://...">
 
-      <span class="field-label">タグ（長押しで編集・削除）</span>
+      <span class="field-label">
+        タグ
+        <span id="tagEditToggle" style="text-decoration:underline; cursor:pointer; margin-left:8px; color:var(--accent-dark);">編集</span>
+      </span>
       <div class="tag-list" id="tagList"></div>
       <div class="tag-add-row">
         <input type="text" id="newTagInput" placeholder="新しいタグを追加">
@@ -310,28 +313,29 @@ async function maybeDeleteGenre(g) {
 }
 
 // ---- タグ ----
+let tagEditMode = false;
+
+document.getElementById("tagEditToggle").onclick = () => {
+  tagEditMode = !tagEditMode;
+  document.getElementById("tagEditToggle").textContent = tagEditMode ? "完了" : "編集";
+  renderTagList();
+};
+
 function renderTagList() {
   const el = document.getElementById("tagList");
   el.innerHTML = "";
   allTags.forEach((tag) => {
     const chip = document.createElement("div");
     chip.className = "tag-chip" + (selectedTags.includes(tag) ? " active" : "");
-    chip.textContent = tag;
+    chip.textContent = tagEditMode ? "✎ " + tag : tag;
     chip.onclick = () => {
-      selectedTags = selectedTags.includes(tag) ? selectedTags.filter((t) => t !== tag) : [...selectedTags, tag];
-      renderTagList();
+      if (tagEditMode) {
+        editOrDeleteTag(tag);
+      } else {
+        selectedTags = selectedTags.includes(tag) ? selectedTags.filter((t) => t !== tag) : [...selectedTags, tag];
+        renderTagList();
+      }
     };
-    chip.oncontextmenu = (e) => { e.preventDefault(); editOrDeleteTag(tag); };
-    let pressTimer;
-    let longPressed = false;
-    chip.addEventListener("touchstart", () => {
-      longPressed = false;
-      pressTimer = setTimeout(() => { longPressed = true; editOrDeleteTag(tag); }, 600);
-    });
-    chip.addEventListener("touchend", (e) => {
-      clearTimeout(pressTimer);
-      if (longPressed) e.preventDefault();
-    });
     el.appendChild(chip);
   });
 }

@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta property="og:image" content="https://raw.githubusercontent.com/noelhazuki/tag-memo/main/frontend/ogp.png">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>tag-memo</title>
+<style>
+  :root {
+    --bg: #f2f9f8;
+    --card: #ffffff;
+    --accent: #4fb3a6;
+    --accent-dark: #368e83;
+    --text: #34423f;
+    --sub: #82968f;
+    --border: #dceae6;
+    --tag-bg: #e8f4f1;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding-bottom: 60px;
+  }
+  header {
+    padding: 16px 16px 0;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 10;
+  }
+  header h1 { font-size: 1.1rem; margin: 0 0 10px; }
+  .container { padding: 0 14px; }
+
+  /* ジャンルタブ */
+  .genre-tabs {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 10px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .genre-tab {
+    flex: 0 0 auto;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: var(--tag-bg);
+    border: 1px solid var(--border);
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+  .genre-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+  .genre-tab.add-tab { background: #fff; border-style: dashed; color: var(--sub); }
+
+  .card {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    border: 1px solid var(--border);
+  }
+  textarea {
+    width: 100%;
+    min-height: 90px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 1rem;
+    font-family: inherit;
+    resize: vertical;
+    background: #fffefc;
+  }
+  input[type="text"], input[type="url"], input[type="password"] {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 0.95rem;
+    font-family: inherit;
+    background: #fffefc;
+  }
+  .field-label { font-size: 0.78rem; color: var(--sub); margin: 12px 0 6px; display: block; }
+  .field-label:first-child { margin-top: 0; }
+  .tag-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag-chip {
+    padding: 6px 12px; border-radius: 999px; background: var(--tag-bg);
+    border: 1px solid var(--border); font-size: 0.82rem; cursor: pointer;
+  }
+  .tag-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .tag-add-row { display: flex; gap: 6px; margin-top: 8px; }
+  .tag-add-row input { flex: 1; padding: 8px 10px; font-size: 0.85rem; }
+  .tag-add-row button { padding: 8px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--tag-bg); font-size: 0.85rem; }
+  .save-btn {
+    width: 100%; padding: 14px; margin-top: 16px; background: var(--accent);
+    color: #fff; border: none; border-radius: 12px; font-size: 1rem; font-weight: 700;
+  }
+  .save-btn:active { background: var(--accent-dark); }
+  .filter-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .entry { background: var(--card); border-radius: 14px; padding: 14px; margin-bottom: 12px; border: 1px solid var(--border); }
+  .entry-memo { white-space: pre-wrap; font-size: 0.95rem; line-height: 1.55; margin-bottom: 8px; }
+  .entry-link { display: inline-block; font-size: 0.82rem; color: var(--accent-dark); text-decoration: none; margin-bottom: 8px; word-break: break-all; }
+  .entry-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+  .entry-tag { font-size: 0.72rem; background: var(--tag-bg); padding: 3px 9px; border-radius: 999px; color: var(--sub); }
+  .entry-footer { display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; color: var(--sub); }
+  .entry-del { background: none; border: none; color: #c26a52; font-size: 0.78rem; padding: 4px 6px; }
+  .empty-state { text-align: center; color: var(--sub); font-size: 0.85rem; padding: 30px 10px; }
+  .section-title { font-size: 0.9rem; font-weight: 700; margin: 20px 0 10px; color: var(--sub); }
+
+  /* パスワードゲート */
+  #gate {
+    position: fixed; inset: 0; background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; z-index: 100; padding: 20px;
+  }
+  #gate .card { width: 100%; max-width: 320px; }
+  #gate-error { color: #c0392b; font-size: 0.8rem; margin-top: 8px; display: none; }
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="card">
+    <span class="field-label">合言葉を入れてな</span>
+    <input type="password" id="gatePassword" placeholder="合言葉">
+    <button class="save-btn" id="gateBtn">入る</button>
+    <div id="gate-error">合言葉ちゃうで、もう一回</div>
+  </div>
+</div>
+
+<div id="app" style="display:none;">
+  <header>
+    <h1>🏷️ tag-memo</h1>
+    <div class="genre-tabs" id="genreTabs"></div>
+  </header>
+
+  <div class="container">
+
+    <div class="card">
+      <span class="field-label">メモ</span>
+      <textarea id="memoInput" placeholder="気づいたこと、自由に書いてな…"></textarea>
+
+      <span class="field-label">リンク（任意）</span>
+      <input type="url" id="linkInput" placeholder="https://...">
+
+      <span class="field-label">タグ</span>
+      <div class="tag-list" id="tagList"></div>
+      <div class="tag-add-row">
+        <input type="text" id="newTagInput" placeholder="新しいタグを追加">
+        <button id="addTagBtn">追加</button>
+      </div>
+
+      <div id="editingBanner" style="display:none; font-size:0.8rem; color:var(--accent-dark); margin-top:10px;">
+        ✏️ このメモを編集中… <span id="cancelEditBtn" style="text-decoration:underline; cursor:pointer;">キャンセル</span>
+      </div>
+      <button class="save-btn" id="saveBtn">保存する</button>
+    </div>
+
+    <div class="section-title">絞り込み</div>
+    <div class="filter-row" id="filterRow"></div>
+
+    <div id="entryList"></div>
+
+  </div>
+</div>
+
+<script>
+// ▼▼▼ デプロイ後、WorkerのURLに書き換えてな ▼▼▼
+const API_BASE = "https://tag-memo.YOUR-SUBDOMAIN.workers.dev";
+// ▲▲▲ ここだけ書き換えたら動くで ▲▲▲
+
+const PW_KEY = "tag_memo_password";
+
+let genres = [];
+let currentGenre = null;
+let allTags = [];
+let entries = [];
+let selectedTags = [];
+let filterTag = null;
+let editingId = null;
+
+function getPassword() { return localStorage.getItem(PW_KEY); }
+
+async function api(path, options = {}) {
+  const res = await fetch(API_BASE + path, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      "X-Auth-Password": getPassword() || "",
+      ...(options.headers || {}),
+    },
+  });
+  if (res.status === 401) {
+    localStorage.removeItem(PW_KEY);
+    document.getElementById("app").style.display = "none";
+    document.getElementById("gate").style.display = "flex";
+    document.getElementById("gate-error").style.display = "block";
+    throw new Error("unauthorized");
+  }
+  return res.json();
+}
+
+// ---- 起動処理 ----
+document.getElementById("gateBtn").onclick = tryLogin;
+document.getElementById("gatePassword").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") tryLogin();
+});
+
+async function tryLogin() {
+  const pw = document.getElementById("gatePassword").value;
+  localStorage.setItem(PW_KEY, pw);
+  try {
+    genres = await api("/api/genres");
+    document.getElementById("gate").style.display = "none";
+    document.getElementById("app").style.display = "block";
+    await boot();
+  } catch (e) {
+    // api()内でエラー表示済み
+  }
+}
+
+async function boot() {
+  allTags = await api("/api/tags");
+  if (!genres.length) genres = ["メモ"];
+  currentGenre = genres[0];
+  renderGenreTabs();
+  renderTagList();
+  renderFilterRow();
+  await loadEntries();
+}
+
+window.addEventListener("load", () => {
+  if (getPassword()) {
+    document.getElementById("gate").style.display = "none";
+    document.getElementById("app").style.display = "block";
+    (async () => {
+      try {
+        genres = await api("/api/genres");
+        await boot();
+      } catch (e) {}
+    })();
+  }
+});
+
+// ---- ジャンルタブ ----
+function renderGenreTabs() {
+  const el = document.getElementById("genreTabs");
+  el.innerHTML = "";
+  genres.forEach((g) => {
+    const tab = document.createElement("div");
+    tab.className = "genre-tab" + (g === currentGenre ? " active" : "");
+    tab.textContent = g;
+    tab.onclick = () => { currentGenre = g; filterTag = null; renderGenreTabs(); renderFilterRow(); loadEntries(); };
+    tab.oncontextmenu = (e) => { e.preventDefault(); maybeDeleteGenre(g); };
+    let pressTimer;
+    tab.addEventListener("touchstart", () => { pressTimer = setTimeout(() => maybeDeleteGenre(g), 600); });
+    tab.addEventListener("touchend", () => clearTimeout(pressTimer));
+    el.appendChild(tab);
+  });
+  const addTab = document.createElement("div");
+  addTab.className = "genre-tab add-tab";
+  addTab.textContent = "＋ジャンル";
+  addTab.onclick = async () => {
+    const name = prompt("新しいジャンル名は？");
+    if (name && name.trim()) {
+      await api("/api/genres", { method: "POST", body: JSON.stringify({ name: name.trim() }) });
+      genres = await api("/api/genres");
+      currentGenre = name.trim();
+      renderGenreTabs();
+      loadEntries();
+    }
+  };
+  el.appendChild(addTab);
+}
+
+async function maybeDeleteGenre(g) {
+  if (genres.length <= 1) { alert("ジャンルは最低1個は残しといてな"); return; }
+  if (confirm(`「${g}」ジャンルを削除する？（中のメモは残るけど表示できなくなるで）`)) {
+    await api("/api/genres/" + encodeURIComponent(g), { method: "DELETE" });
+    genres = await api("/api/genres");
+    currentGenre = genres[0];
+    renderGenreTabs();
+    renderFilterRow();
+    loadEntries();
+  }
+}
+
+// ---- タグ ----
+function renderTagList() {
+  const el = document.getElementById("tagList");
+  el.innerHTML = "";
+  allTags.forEach((tag) => {
+    const chip = document.createElement("div");
+    chip.className = "tag-chip" + (selectedTags.includes(tag) ? " active" : "");
+    chip.textContent = tag;
+    chip.onclick = () => {
+      selectedTags = selectedTags.includes(tag) ? selectedTags.filter((t) => t !== tag) : [...selectedTags, tag];
+      renderTagList();
+    };
+    el.appendChild(chip);
+  });
+}
+
+document.getElementById("addTagBtn").onclick = async () => {
+  const input = document.getElementById("newTagInput");
+  const val = input.value.trim();
+  if (val && !allTags.includes(val)) {
+    await api("/api/tags", { method: "POST", body: JSON.stringify({ name: val }) });
+    allTags.push(val);
+    selectedTags.push(val);
+    renderTagList();
+    renderFilterRow();
+  }
+  input.value = "";
+};
+
+function renderFilterRow() {
+  const el = document.getElementById("filterRow");
+  el.innerHTML = "";
+  const allChip = document.createElement("div");
+  allChip.className = "tag-chip" + (filterTag === null ? " active" : "");
+  allChip.textContent = "すべて";
+  allChip.onclick = () => { filterTag = null; renderFilterRow(); renderEntries(); };
+  el.appendChild(allChip);
+  allTags.forEach((tag) => {
+    const chip = document.createElement("div");
+    chip.className = "tag-chip" + (filterTag === tag ? " active" : "");
+    chip.textContent = tag;
+    chip.onclick = () => { filterTag = tag; renderFilterRow(); renderEntries(); };
+    el.appendChild(chip);
+  });
+}
+
+// ---- メモの読み込み・保存 ----
+async function loadEntries() {
+  entries = await api("/api/entries?genre=" + encodeURIComponent(currentGenre));
+  renderEntries();
+}
+
+function resetForm() {
+  document.getElementById("memoInput").value = "";
+  document.getElementById("linkInput").value = "";
+  selectedTags = [];
+  editingId = null;
+  document.getElementById("editingBanner").style.display = "none";
+  document.getElementById("saveBtn").textContent = "保存する";
+  renderTagList();
+}
+
+document.getElementById("saveBtn").onclick = async () => {
+  const memo = document.getElementById("memoInput").value.trim();
+  const link = document.getElementById("linkInput").value.trim();
+  if (!memo) { alert("メモを書いてな"); return; }
+
+  if (editingId !== null) {
+    await api("/api/entries/" + editingId, {
+      method: "PUT",
+      body: JSON.stringify({ genre: currentGenre, memo, link, tags: selectedTags }),
+    });
+  } else {
+    await api("/api/entries", {
+      method: "POST",
+      body: JSON.stringify({ genre: currentGenre, memo, link, tags: selectedTags }),
+    });
+  }
+  resetForm();
+  await loadEntries();
+};
+
+document.getElementById("cancelEditBtn").onclick = resetForm;
+
+function editEntry(id) {
+  const entry = entries.find((e) => e.id === id);
+  if (!entry) return;
+  document.getElementById("memoInput").value = entry.memo || "";
+  document.getElementById("linkInput").value = entry.link || "";
+  selectedTags = [...(entry.tags || [])];
+  editingId = entry.id;
+  renderTagList();
+  document.getElementById("editingBanner").style.display = "block";
+  document.getElementById("saveBtn").textContent = "更新する";
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// ---- 一覧描画 ----
+function formatDate(iso) {
+  const d = new Date(iso);
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function renderEntries() {
+  const list = document.getElementById("entryList");
+  list.innerHTML = "";
+  const filtered = filterTag ? entries.filter((e) => e.tags.includes(filterTag)) : entries;
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty-state">まだメモがないで。上から書いてみてな</div>';
+    return;
+  }
+
+  filtered.forEach((entry) => {
+    const div = document.createElement("div");
+    div.className = "entry";
+
+    if (entry.memo) {
+      const memoEl = document.createElement("div");
+      memoEl.className = "entry-memo";
+      memoEl.textContent = entry.memo;
+      div.appendChild(memoEl);
+    }
+
+    if (entry.link) {
+      const a = document.createElement("a");
+      a.className = "entry-link";
+      a.href = entry.link;
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.textContent = "🔗 " + entry.link;
+      div.appendChild(a);
+    }
+
+    if (entry.tags && entry.tags.length) {
+      const tagWrap = document.createElement("div");
+      tagWrap.className = "entry-tags";
+      entry.tags.forEach((t) => {
+        const tEl = document.createElement("span");
+        tEl.className = "entry-tag";
+        tEl.textContent = t;
+        tagWrap.appendChild(tEl);
+      });
+      div.appendChild(tagWrap);
+    }
+
+    const footer = document.createElement("div");
+    footer.className = "entry-footer";
+    const dateEl = document.createElement("span");
+    dateEl.textContent = formatDate(entry.created_at);
+
+    const btnWrap = document.createElement("span");
+    const editBtn = document.createElement("button");
+    editBtn.className = "entry-del";
+    editBtn.style.color = "var(--accent-dark)";
+    editBtn.textContent = "編集";
+    editBtn.onclick = () => editEntry(entry.id);
+
+    const delBtn = document.createElement("button");
+    delBtn.className = "entry-del";
+    delBtn.textContent = "削除";
+    delBtn.onclick = async () => {
+      if (confirm("このメモ削除する？")) {
+        await api("/api/entries/" + entry.id, { method: "DELETE" });
+        await loadEntries();
+      }
+    };
+    btnWrap.appendChild(editBtn);
+    btnWrap.appendChild(delBtn);
+
+    footer.appendChild(dateEl);
+    footer.appendChild(btnWrap);
+    div.appendChild(footer);
+
+    list.appendChild(div);
+  });
+}
+</script>
+
+</body>
+</html>

@@ -145,7 +145,7 @@
       <span class="field-label">リンク（任意）</span>
       <input type="url" id="linkInput" placeholder="https://...">
 
-      <span class="field-label">タグ</span>
+      <span class="field-label">タグ（長押しで編集・削除）</span>
       <div class="tag-list" id="tagList"></div>
       <div class="tag-add-row">
         <input type="text" id="newTagInput" placeholder="新しいタグを追加">
@@ -222,13 +222,21 @@ async function tryLogin() {
 }
 
 async function boot() {
-  allTags = await api("/api/tags");
   if (!genres.length) genres = ["メモ"];
   currentGenre = genres[0];
   renderGenreTabs();
-  renderTagList();
-  renderFilterRow();
+  await loadTags();
   await loadEntries();
+}
+
+async function loadTags() {
+  try {
+    allTags = await api("/api/tags?genre=" + encodeURIComponent(currentGenre));
+    renderTagList();
+    renderFilterRow();
+  } catch (e) {
+    if (e.message !== "unauthorized") alert("タグ読み込みエラー: " + e.message);
+  }
 }
 
 window.addEventListener("load", () => {
@@ -254,7 +262,14 @@ function renderGenreTabs() {
     const tab = document.createElement("div");
     tab.className = "genre-tab" + (g === currentGenre ? " active" : "");
     tab.textContent = g;
-    tab.onclick = () => { currentGenre = g; filterTag = null; renderGenreTabs(); renderFilterRow(); loadEntries(); };
+    tab.onclick = () => {
+      currentGenre = g;
+      filterTag = null;
+      resetForm();
+      renderGenreTabs();
+      loadTags();
+      loadEntries();
+    };
     tab.oncontextmenu = (e) => { e.preventDefault(); maybeDeleteGenre(g); };
     let pressTimer;
     tab.addEventListener("touchstart", () => { pressTimer = setTimeout(() => maybeDeleteGenre(g), 600); });
@@ -272,7 +287,8 @@ function renderGenreTabs() {
         genres = await api("/api/genres");
         currentGenre = name.trim();
         renderGenreTabs();
-        loadEntries();
+        await loadTags();
+        await loadEntries();
       } catch (e) {
         if (e.message !== "unauthorized") alert("ジャンル追加エラー: " + e.message);
       }
@@ -288,7 +304,7 @@ async function maybeDeleteGenre(g) {
     genres = await api("/api/genres");
     currentGenre = genres[0];
     renderGenreTabs();
-    renderFilterRow();
+    await loadTags();
     loadEntries();
   }
 }
@@ -305,19 +321,67 @@ function renderTagList() {
       selectedTags = selectedTags.includes(tag) ? selectedTags.filter((t) => t !== tag) : [...selectedTags, tag];
       renderTagList();
     };
+    chip.oncontextmenu = (e) => { e.preventDefault(); editOrDeleteTag(tag); };
+    let pressTimer;
+    let longPressed = false;
+    chip.addEventListener("touchstart", () => {
+      longPressed = false;
+      pressTimer = setTimeout(() => { longPressed = true; editOrDeleteTag(tag); }, 600);
+    });
+    chip.addEventListener("touchend", (e) => {
+      clearTimeout(pressTimer);
+      if (longPressed) e.preventDefault();
+    });
     el.appendChild(chip);
   });
+}
+
+async function editOrDeleteTag(tag) {
+  const newName = prompt(`「${tag}」を編集（空にすると削除）`, tag);
+  if (newName === null) return;
+  const trimmed = newName.trim();
+  if (trimmed === "") {
+    if (!confirm(`「${tag}」を削除する？`)) return;
+    try {
+      await api(`/api/tags?genre=${encodeURIComponent(currentGenre)}&name=${encodeURIComponent(tag)}`, { method: "DELETE" });
+      allTags = allTags.filter((t) => t !== tag);
+      selectedTags = selectedTags.filter((t) => t !== tag);
+      if (filterTag === tag) filterTag = null;
+      renderTagList();
+      renderFilterRow();
+    } catch (e) {
+      if (e.message !== "unauthorized") alert("タグ削除エラー: " + e.message);
+    }
+  } else if (trimmed !== tag) {
+    try {
+      await api(`/api/tags?genre=${encodeURIComponent(currentGenre)}&name=${encodeURIComponent(tag)}`, {
+        method: "PUT",
+        body: JSON.stringify({ newName: trimmed }),
+      });
+      allTags = allTags.map((t) => (t === tag ? trimmed : t));
+      selectedTags = selectedTags.map((t) => (t === tag ? trimmed : t));
+      if (filterTag === tag) filterTag = trimmed;
+      renderTagList();
+      renderFilterRow();
+    } catch (e) {
+      if (e.message !== "unauthorized") alert("タグ編集エラー: " + e.message);
+    }
+  }
 }
 
 document.getElementById("addTagBtn").onclick = async () => {
   const input = document.getElementById("newTagInput");
   const val = input.value.trim();
   if (val && !allTags.includes(val)) {
-    await api("/api/tags", { method: "POST", body: JSON.stringify({ name: val }) });
-    allTags.push(val);
-    selectedTags.push(val);
-    renderTagList();
-    renderFilterRow();
+    try {
+      await api("/api/tags", { method: "POST", body: JSON.stringify({ name: val, genre: currentGenre }) });
+      allTags.push(val);
+      selectedTags.push(val);
+      renderTagList();
+      renderFilterRow();
+    } catch (e) {
+      if (e.message !== "unauthorized") alert("タグ追加エラー: " + e.message);
+    }
   }
   input.value = "";
 };

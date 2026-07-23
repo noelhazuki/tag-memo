@@ -202,7 +202,11 @@ async function api(path, options = {}) {
     document.getElementById("gate-error").style.display = "block";
     throw new Error("unauthorized");
   }
-  return res.json();
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error((data && data.error) ? data.error : ("HTTPエラー " + res.status));
+  }
+  return data;
 }
 
 // ---- 起動処理 ----

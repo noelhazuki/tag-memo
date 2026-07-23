@@ -56,19 +56,38 @@ export default {
         return withCors(jsonResponse({ ok: true }));
       }
 
-      // ---- タグ ----
+      // ---- タグ（ジャンルごと） ----
       if (path === "/api/tags" && request.method === "GET") {
+        const genre = url.searchParams.get("genre") || "";
         const { results } = await env.DB.prepare(
-          "SELECT name FROM tags ORDER BY name ASC"
-        ).all();
+          "SELECT name FROM tags WHERE genre = ? ORDER BY name ASC"
+        ).bind(genre).all();
         return withCors(jsonResponse(results.map((r) => r.name)));
       }
 
       if (path === "/api/tags" && request.method === "POST") {
         const body = await request.json();
         const name = (body.name || "").trim();
-        if (!name) return withCors(jsonResponse({ error: "name required" }, 400));
-        await env.DB.prepare("INSERT OR IGNORE INTO tags (name) VALUES (?)").bind(name).run();
+        const genre = (body.genre || "").trim();
+        if (!name || !genre) return withCors(jsonResponse({ error: "name and genre required" }, 400));
+        await env.DB.prepare("INSERT OR IGNORE INTO tags (name, genre) VALUES (?, ?)").bind(name, genre).run();
+        return withCors(jsonResponse({ ok: true }));
+      }
+
+      if (path === "/api/tags" && request.method === "DELETE") {
+        const genre = url.searchParams.get("genre") || "";
+        const name = url.searchParams.get("name") || "";
+        await env.DB.prepare("DELETE FROM tags WHERE genre = ? AND name = ?").bind(genre, name).run();
+        return withCors(jsonResponse({ ok: true }));
+      }
+
+      if (path === "/api/tags" && request.method === "PUT") {
+        const genre = url.searchParams.get("genre") || "";
+        const name = url.searchParams.get("name") || "";
+        const body = await request.json();
+        const newName = (body.newName || "").trim();
+        if (!newName) return withCors(jsonResponse({ error: "newName required" }, 400));
+        await env.DB.prepare("UPDATE tags SET name = ? WHERE genre = ? AND name = ?").bind(newName, genre, name).run();
         return withCors(jsonResponse({ ok: true }));
       }
 

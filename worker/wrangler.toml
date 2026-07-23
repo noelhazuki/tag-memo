@@ -5,4 +5,4 @@ compatibility_date = "2024-11-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "tag-memo-db"
-database_id = "9add80c2-302a-4345-adad-99c07326793e"
+database_id = "ここにD1作成後のIDを貼る"
